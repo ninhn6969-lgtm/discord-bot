@@ -6,6 +6,7 @@ import discord
 from discord.ext import commands, tasks
 from datetime import datetime
 from dotenv import load_dotenv
+from keep_alive import keep_alive # Đã thêm dòng này
 
 load_dotenv()
 
@@ -168,7 +169,7 @@ night_messages = [
     "🌸 Chúc giấc ngủ nhẹ nhàng như cánh hoa bay!",
     "💡 Tắt hết lo lắng — bật lên giấc ngủ ngon lành!",
     "🚀 Nạp năng lượng qua giấc ngủ để ngày mai chinh phục thế giới!",
-    "🌊 Để sóng đêm mang đi mọi mệt mỏi của bạn!",
+    "🌊 Hãy để sóng đêm mang đi mọi mệt mỏi của bạn!",
     "🦋 Biến thành bướm xinh đẹp sau một đêm nghỉ ngơi!",
     "🏔️ Leo lên đỉnh cao nhờ ngủ đủ giấc mỗi đêm!",
     "🎨 Ngủ để não bộ sáng tạo hơn vào ngày mai!",
@@ -306,7 +307,9 @@ def get_upcoming_holiday():
     min_days = 366
 
     for day, month, name in HOLIDAYS:
-        hdate = datetime(current_year, month, day)
+        try:
+            hdate = datetime(current_year, month, day)
+        except ValueError: continue
         if hdate < today.replace(hour=0, minute=0, second=0, microsecond=0):
             hdate = datetime(current_year + 1, month, day)
         delta = (hdate - today.replace(hour=0, minute=0, second=0, microsecond=0)).days
@@ -314,655 +317,113 @@ def get_upcoming_holiday():
             min_days = delta
             closest = (day, month, name, delta)
 
-    if closest is None:
-        return ""
+    if closest is None: return ""
     day, month, name, delta = closest
-    if delta == 0:
-        return f"🎉 **Hôm nay là {name}!** Chúc mừng ngày lễ!"
-    elif delta == 1:
-        return f"📅 **Ngày mai là {name}!** Chuẩn bị đón lễ nhé!"
-    elif delta <= 7:
-        return f"📅 Còn **{delta} ngày** nữa là đến **{name}** ({day}/{month})!"
-    elif delta <= 30:
-        return f"📅 Còn **{delta} ngày** nữa là đến **{name}** ({day}/{month})."
-    else:
-        return f"📅 Ngày lễ gần nhất: **{name}** ({day}/{month}) — còn {delta} ngày."
+    if delta == 0: return f"🎉 **Hôm nay là {name}!** Chúc mừng ngày lễ!"
+    elif delta == 1: return f"📅 **Ngày mai là {name}!** Chuẩn bị đón lễ nhé!"
+    else: return f"📅 Còn **{delta} ngày** nữa là đến **{name}** ({day}/{month})."
 
+# Cấu hình file lưu dữ liệu
+XP_FILE = "xp_data.json"
+COMMANDS_FILE = "custom_commands.json"
+AUTO_RESPONSES_FILE = "auto_responses.json"
 
-XP_FILE = "bot/xp_data.json"
 XP_COOLDOWN = {}
 
 LEVEL_ROLES = [
-    (0,       "🌱 Người Mới"),
-    (200,     "🌿 Người Quen"),
-    (500,     "🌳 Thành Viên"),
-    (1000,    "💬 Hay Nói Chuyện"),
-    (2000,    "⭐ Hoạt Động"),
-    (3500,    "🔵 Tích Cực"),
-    (5500,    "🟢 Cựu Thành Viên"),
-    (8000,    "🔥 Nhiệt Huyết"),
-    (11000,   "💪 Chiến Binh"),
-    (15000,   "⚡ Siêu Năng Động"),
-    (20000,   "🎯 Chuyên Gia"),
-    (27000,   "🌟 Ngôi Sao"),
-    (36000,   "🏅 Hào Quang"),
-    (47000,   "🥇 Vô Địch"),
-    (60000,   "💎 Kim Cương"),
-    (76000,   "🔮 Huyền Bí"),
-    (95000,   "👑 Hoàng Gia"),
-    (120000,  "🌈 Huyền Thoại"),
-    (150000,  "🦋 Siêu Huyền Thoại"),
-    (200000,  "🏆 Bất Tử"),
+    (0,       "🌱 Người Mới"), (200,     "🌿 Người Quen"), (500,     "🌳 Thành Viên"),
+    (1000,    "💬 Hay Nói Chuyện"), (2000,    "⭐ Hoạt Động"), (3500,    "🔵 Tích Cực"),
+    (5500,    "🟢 Cựu Thành Viên"), (8000,    "🔥 Nhiệt Huyết"), (11000,   "💪 Chiến Binh"),
+    (15000,   "⚡ Siêu Năng Động"), (20000,   "🎯 Chuyên Gia"), (27000,   "🌟 Ngôi Sao"),
+    (36000,   "🏅 Hào Quang"), (47000,   "🥇 Vô Địch"), (60000,   "💎 Kim Cương"),
+    (76000,   "🔮 Huyền Bí"), (95000,   "👑 Hoàng Gia"), (120000,  "🌈 Huyền Thoại"),
+    (150000,  "🦋 Siêu Huyền Thoại"), (200000,  "🏆 Bất Tử"),
 ]
-
 
 def get_level_role(xp):
     current_role = LEVEL_ROLES[0][1]
     for threshold, role_name in LEVEL_ROLES:
-        if xp >= threshold:
-            current_role = role_name
-        else:
-            break
+        if xp >= threshold: current_role = role_name
+        else: break
     return current_role
 
+def load_json(path):
+    if not os.path.exists(path): return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f: return json.load(f)
+    except: return {}
 
-def get_next_level(xp):
-    for threshold, role_name in LEVEL_ROLES:
-        if xp < threshold:
-            return threshold, role_name
-    return None, None
-
-
-def load_xp():
-    if not os.path.exists(XP_FILE):
-        return {}
-    with open(XP_FILE, "r") as f:
-        return json.load(f)
-
-
-def save_xp(data):
-    with open(XP_FILE, "w") as f:
-        json.dump(data, f, indent=2)
-
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
 
 async def give_xp(message):
     import time
     user_id = str(message.author.id)
     now = time.time()
-
-    if user_id in XP_COOLDOWN and now - XP_COOLDOWN[user_id] < 60:
-        return
-
+    if user_id in XP_COOLDOWN and now - XP_COOLDOWN[user_id] < 60: return
     XP_COOLDOWN[user_id] = now
-
-    xp_data = load_xp()
-    if user_id not in xp_data:
-        xp_data[user_id] = {"xp": 0, "role": LEVEL_ROLES[0][1]}
-
+    xp_data = load_json(XP_FILE)
+    if user_id not in xp_data: xp_data[user_id] = {"xp": 0, "role": LEVEL_ROLES[0][1]}
     old_role = get_level_role(xp_data[user_id]["xp"])
-    char_xp = min(len(message.content), 200)
-    xp_data[user_id]["xp"] += char_xp
-    new_xp = xp_data[user_id]["xp"]
-    new_role = get_level_role(new_xp)
-
-    save_xp(xp_data)
-
+    xp_data[user_id]["xp"] += min(len(message.content), 200)
+    new_role = get_level_role(xp_data[user_id]["xp"])
+    save_json(XP_FILE, xp_data)
     if new_role != old_role and message.guild:
-        member = message.guild.get_member(message.author.id)
-        if member:
-            for _, role_name in LEVEL_ROLES:
-                existing = discord.utils.get(message.guild.roles, name=role_name)
-                if existing and existing in member.roles:
-                    try:
-                        await member.remove_roles(existing)
-                    except Exception:
-                        pass
-
-            new_discord_role = discord.utils.get(message.guild.roles, name=new_role)
-            if not new_discord_role:
-                try:
-                    new_discord_role = await message.guild.create_role(name=new_role, reason="Level up!")
-                except Exception:
-                    pass
-            if new_discord_role:
-                try:
-                    await member.add_roles(new_discord_role)
-                except Exception:
-                    pass
-
-            await message.channel.send(
-                f"🎉 Chúc mừng {message.author.mention}! Bạn đã lên cấp mới: **{new_role}**! (XP: {new_xp})"
-            )
-
+        await message.channel.send(f"🎉 {message.author.mention} đã lên cấp: **{new_role}**!")
 
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True  # Cần bật "Server Members Intent" trong Discord Developer Portal
-
+intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-COMMANDS_FILE = "bot/custom_commands.json"
-AUTO_RESPONSES_FILE = "bot/auto_responses.json"
 
 last_morning_day = None
 last_night_day = None
 
-
-def load_json(path):
-    if not os.path.exists(path):
-        return {}
-    with open(path, "r") as f:
-        return json.load(f)
-
-
-def save_json(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-
-
-AQI_LABELS = {
-    1: "Tốt 🟢",
-    2: "Khá 🟡",
-    3: "Trung bình 🟠",
-    4: "Kém 🔴",
-    5: "Rất kém 🟣"
-}
-
-
-def get_weather(city):
-    url = (
-        f"https://api.openweathermap.org/data/2.5/weather"
-        f"?q={city}&appid={WEATHER_API}&units=metric&lang=vi"
-    )
-    try:
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        temp = data["main"]["temp"]
-        humidity = data["main"]["humidity"]
-        weather = data["weather"][0]["description"]
-        lat = data["coord"]["lat"]
-        lon = data["coord"]["lon"]
-
-        aqi_url = (
-            f"http://api.openweathermap.org/data/2.5/air_pollution"
-            f"?lat={lat}&lon={lon}&appid={WEATHER_API}"
-        )
-        aqi_response = requests.get(aqi_url, timeout=10)
-        aqi_data = aqi_response.json()
-        aqi = aqi_data["list"][0]["main"]["aqi"]
-        aqi_label = AQI_LABELS.get(aqi, "Không rõ")
-
-        return f"{temp}°C - {weather} | 💧 Độ ẩm: {humidity}% | 🌬️ KK: {aqi_label}"
-    except Exception:
-        return "Không lấy được dữ liệu"
-
-
-def get_forecast_at(city, target_hour):
-    url = (
-        f"https://api.openweathermap.org/data/2.5/forecast"
-        f"?q={city}&appid={WEATHER_API}&units=metric&lang=vi&cnt=8"
-    )
-    try:
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        forecasts = data["list"]
-        today = datetime.now().strftime("%Y-%m-%d")
-
-        best = None
-        for item in forecasts:
-            dt_txt = item["dt_txt"]
-            if not dt_txt.startswith(today):
-                continue
-            hour = int(dt_txt[11:13])
-            if best is None or abs(hour - target_hour) < abs(int(best["dt_txt"][11:13]) - target_hour):
-                best = item
-
-        if best is None:
-            return "Không có dữ liệu"
-
-        temp = best["main"]["temp"]
-        humidity = best["main"]["humidity"]
-        desc = best["weather"][0]["description"]
-        return f"{temp}°C - {desc} | 💧 {humidity}%"
-    except Exception:
-        return "Không lấy được dữ liệu"
-
-
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
-    print("Bot is ready!")
+    print(f"Bot {bot.user} đã sẵn sàng!")
     auto_message.start()
-
 
 @tasks.loop(minutes=1)
 async def auto_message():
     global last_morning_day, last_night_day
-
     now = datetime.now()
-    day, month, year = now.day, now.month, now.year
     try:
         channel = await bot.fetch_channel(CHANNEL_ID)
-    except Exception:
-        print(f"Không tìm thấy channel ID {CHANNEL_ID}")
-        return
-
-    weather_text = ""
-    for city_name, city_api in cities:
-        weather = get_weather(city_api)
-        weather_text += f"🌤️ {city_name}: {weather}\n"
-
-    if now.hour == 7 and now.minute == 0:
-        if last_morning_day != day:
-            random_message = random.choice(morning_messages)
-            noon_text = ""
-            afternoon_text = ""
-            for city_name, city_api in cities:
-                noon_text += f"🌞 {city_name}: {get_forecast_at(city_api, 12)}\n"
-                afternoon_text += f"🌆 {city_name}: {get_forecast_at(city_api, 18)}\n"
-
-            holiday_text = get_upcoming_holiday()
-            fact_text = random.choice(daily_facts)
-
-            await channel.send(
-                f"☀️ Good Morning mọi người!\n\n"
-                f"📅 Hôm nay là ngày {day}/{month}/{year}\n\n"
-                f"**🌡️ Thời tiết buổi sáng:**\n{weather_text}\n"
-                f"**🍱 Dự báo buổi trưa (11h-13h):**\n{noon_text}\n"
-                f"**🌇 Dự báo buổi chiều (17h-19h):**\n{afternoon_text}\n"
-                f"{holiday_text}\n\n"
-                f"**🎲 Fact/Joke trong ngày:**\n{fact_text}\n\n"
-                f"{random_message}"
-            )
-            last_morning_day = day
-
-    if now.hour == 23 and now.minute == 0:
-        if last_night_day != day:
-            random_message = random.choice(night_messages)
-            await channel.send(
-                f"🌙 Good Night mọi người!\n\n"
-                f"📅 Hôm nay là ngày {day}/{month}/{year}\n\n"
-                f"{weather_text}\n"
-                f"{random_message}"
-            )
-            last_night_day = day
-
-
-@bot.event
-async def on_member_join(member):
-    xp_data = load_xp()
-    user_id = str(member.id)
-    if user_id not in xp_data:
-        xp_data[user_id] = {"xp": 0, "role": LEVEL_ROLES[0][1]}
-        save_xp(xp_data)
-
-    first_role_name = LEVEL_ROLES[0][1]
-    role = discord.utils.get(member.guild.roles, name=first_role_name)
-    if not role:
-        try:
-            role = await member.guild.create_role(name=first_role_name, reason="Role mặc định cho thành viên mới")
-        except Exception:
-            return
-    try:
-        await member.add_roles(role)
-    except Exception:
-        pass
-
+    except: return
+    if now.hour == 7 and now.minute == 0 and last_morning_day != now.day:
+        await channel.send(f"☀️ {random.choice(morning_messages)}\nHôm nay là {now.day}/{now.month}/{now.year}")
+        last_morning_day = now.day
+    if now.hour == 23 and now.minute == 0 and last_night_day != now.day:
+        await channel.send(f"🌙 {random.choice(night_messages)}")
+        last_night_day = now.day
 
 @bot.event
 async def on_message(message):
-    if message.author.bot:
-        return
-
+    if message.author.bot: return
     content_lower = message.content.lower()
-
     auto_responses = load_json(AUTO_RESPONSES_FILE)
     for trigger, response in auto_responses.items():
         if trigger.lower() in content_lower:
             await message.channel.send(response)
             break
-
     if message.content.startswith(bot.command_prefix):
         cmd_name = message.content[len(bot.command_prefix):].split()[0].lower()
         custom_commands = load_json(COMMANDS_FILE)
         if cmd_name in custom_commands:
             await message.channel.send(custom_commands[cmd_name])
             return
-
     await give_xp(message)
     await bot.process_commands(message)
 
-
-@bot.command(name="addcmd")
+@bot.command()
 @commands.has_permissions(manage_guild=True)
-async def add_command(ctx, name: str, *, response: str):
-    """Thêm lệnh tùy chỉnh. Dùng: !addcmd <tên> <nội dung>"""
-    custom_commands = load_json(COMMANDS_FILE)
-    custom_commands[name.lower()] = response
-    save_json(COMMANDS_FILE, custom_commands)
-    await ctx.send(f"Đã thêm lệnh `!{name}`!")
+async def addcmd(ctx, name: str, *, response: str):
+    data = load_json(COMMANDS_FILE)
+    data[name.lower()] = response
+    save_json(COMMANDS_FILE, data)
+    await ctx.send(f"Đã thêm lệnh `!{name}`")
 
-
-@bot.command(name="removecmd")
-@commands.has_permissions(manage_guild=True)
-async def remove_command(ctx, name: str):
-    """Xóa lệnh tùy chỉnh. Dùng: !removecmd <tên>"""
-    custom_commands = load_json(COMMANDS_FILE)
-    if name.lower() in custom_commands:
-        del custom_commands[name.lower()]
-        save_json(COMMANDS_FILE, custom_commands)
-        await ctx.send(f"Đã xóa lệnh `!{name}`.")
-    else:
-        await ctx.send(f"Không tìm thấy lệnh `!{name}`.")
-
-
-@bot.command(name="listcmds")
-async def list_commands(ctx):
-    """Xem danh sách lệnh tùy chỉnh."""
-    custom_commands = load_json(COMMANDS_FILE)
-    if not custom_commands:
-        await ctx.send("Chưa có lệnh tùy chỉnh nào.")
-        return
-    cmds = "\n".join([f"`!{k}` — {v}" for k, v in custom_commands.items()])
-    embed = discord.Embed(title="Lệnh tùy chỉnh", description=cmds, color=0x5865F2)
-    await ctx.send(embed=embed)
-
-
-@bot.command(name="addauto")
-@commands.has_permissions(manage_guild=True)
-async def add_auto(ctx, trigger: str, *, response: str):
-    """Thêm auto-response. Dùng: !addauto <trigger> <nội dung>"""
-    auto_responses = load_json(AUTO_RESPONSES_FILE)
-    auto_responses[trigger.lower()] = response
-    save_json(AUTO_RESPONSES_FILE, auto_responses)
-    await ctx.send(f"Đã thêm auto-response cho `{trigger}`!")
-
-
-@bot.command(name="removeauto")
-@commands.has_permissions(manage_guild=True)
-async def remove_auto(ctx, trigger: str):
-    """Xóa auto-response. Dùng: !removeauto <trigger>"""
-    auto_responses = load_json(AUTO_RESPONSES_FILE)
-    if trigger.lower() in auto_responses:
-        del auto_responses[trigger.lower()]
-        save_json(AUTO_RESPONSES_FILE, auto_responses)
-        await ctx.send(f"Đã xóa auto-response cho `{trigger}`.")
-    else:
-        await ctx.send(f"Không tìm thấy auto-response cho `{trigger}`.")
-
-
-@bot.command(name="listauto")
-async def list_auto(ctx):
-    """Xem danh sách auto-response."""
-    auto_responses = load_json(AUTO_RESPONSES_FILE)
-    if not auto_responses:
-        await ctx.send("Chưa có auto-response nào.")
-        return
-    items = "\n".join([f"`{k}` → {v}" for k, v in auto_responses.items()])
-    embed = discord.Embed(title="Auto-Responses", description=items, color=0x57F287)
-    await ctx.send(embed=embed)
-
-
-@bot.command(name="schedule")
-async def schedule(ctx):
-    """Xem lịch gửi tin nhắn tự động."""
-    now = datetime.now()
-    day = now.day
-
-    morning_status = "✅ Đã gửi hôm nay" if last_morning_day == day else "⏳ Chưa gửi hôm nay"
-    night_status = "✅ Đã gửi hôm nay" if last_night_day == day else "⏳ Chưa gửi hôm nay"
-
-    embed = discord.Embed(title="📅 Lịch tin nhắn tự động", color=0xFFA500)
-    embed.add_field(
-        name="☀️ Good Morning",
-        value=f"Gửi lúc **07:00** mỗi ngày\nTrạng thái: {morning_status}",
-        inline=False
-    )
-    embed.add_field(
-        name="🌙 Good Night",
-        value=f"Gửi lúc **23:00** mỗi ngày\nTrạng thái: {night_status}",
-        inline=False
-    )
-    embed.add_field(
-        name="🕐 Giờ hiện tại",
-        value=f"`{now.strftime('%H:%M:%S')}` ngày {now.strftime('%d/%m/%Y')}",
-        inline=False
-    )
-    await ctx.send(embed=embed)
-
-
-@bot.command(name="testmsg")
-@commands.has_permissions(manage_guild=True)
-async def testmsg(ctx, loai: str = "morning"):
-    """Gửi thử tin nhắn tự động. Dùng: !testmsg morning | !testmsg night"""
-    now = datetime.now()
-    day, month, year = now.day, now.month, now.year
-    channel = ctx.channel
-
-    weather_text = ""
-    for city_name, city_api in cities:
-        weather = get_weather(city_api)
-        weather_text += f"🌤️ {city_name}: {weather}\n"
-
-    if loai.lower() in ("morning", "sang", "sáng"):
-        noon_text = ""
-        afternoon_text = ""
-        for city_name, city_api in cities:
-            noon_text += f"🌞 {city_name}: {get_forecast_at(city_api, 12)}\n"
-            afternoon_text += f"🌆 {city_name}: {get_forecast_at(city_api, 18)}\n"
-
-        holiday_text = get_upcoming_holiday()
-        fact_text = random.choice(daily_facts)
-
-        await channel.send(
-            f"☀️ Good Morning mọi người!\n\n"
-            f"📅 Hôm nay là ngày {day}/{month}/{year}\n\n"
-            f"**🌡️ Thời tiết buổi sáng:**\n{weather_text}\n"
-            f"**🍱 Dự báo buổi trưa (11h-13h):**\n{noon_text}\n"
-            f"**🌇 Dự báo buổi chiều (17h-19h):**\n{afternoon_text}\n"
-            f"{holiday_text}\n\n"
-            f"**🎲 Fact/Joke trong ngày:**\n{fact_text}\n\n"
-            f"{random.choice(morning_messages)}"
-        )
-        await ctx.send("✅ Đã gửi thử tin nhắn **Good Morning**!", delete_after=5)
-
-    elif loai.lower() in ("night", "toi", "tối"):
-        await channel.send(
-            f"🌙 Good Night mọi người!\n\n"
-            f"📅 Hôm nay là ngày {day}/{month}/{year}\n\n"
-            f"{weather_text}\n"
-            f"{random.choice(night_messages)}"
-        )
-        await ctx.send("✅ Đã gửi thử tin nhắn **Good Night**!", delete_after=5)
-
-    else:
-        await ctx.send("❌ Dùng: `!testmsg morning` hoặc `!testmsg night`")
-
-
-@bot.command(name="rank")
-async def rank(ctx, member: discord.Member = None):
-    """Xem XP và cấp độ. Dùng: !rank hoặc !rank @người"""
-    target = member or ctx.author
-    xp_data = load_xp()
-    user_id = str(target.id)
-
-    if user_id not in xp_data:
-        xp_data[user_id] = {"xp": 0, "role": LEVEL_ROLES[0][1]}
-
-    xp = xp_data[user_id]["xp"]
-    current_role = get_level_role(xp)
-    next_threshold, next_role = get_next_level(xp)
-
-    embed = discord.Embed(title=f"📊 Rank của {target.display_name}", color=0xF1C40F)
-    embed.set_thumbnail(url=target.display_avatar.url)
-    embed.add_field(name="🏅 Cấp hiện tại", value=current_role, inline=True)
-    embed.add_field(name="⚡ XP", value=f"{xp} XP", inline=True)
-
-    if next_threshold:
-        prev_threshold = 0
-        for t, _ in LEVEL_ROLES:
-            if t < next_threshold and t <= xp:
-                prev_threshold = t
-        span = next_threshold - prev_threshold
-        progress = xp - prev_threshold
-        bar_fill = int(progress / span * 10) if span > 0 else 10
-        bar_fill = max(0, min(10, bar_fill))
-        bar = "🟩" * bar_fill + "⬛" * (10 - bar_fill)
-        embed.add_field(
-            name="📈 Lên cấp tiếp theo",
-            value=f"**{next_role}** — còn **{next_threshold - xp} XP** ({progress}/{span})",
-            inline=False
-        )
-        embed.add_field(name="Tiến độ", value=bar, inline=False)
-    else:
-        embed.add_field(name="📈 Cấp độ", value="Đã đạt cấp tối đa! 👑", inline=False)
-
-    await ctx.send(embed=embed)
-
-
-@bot.command(name="leaderboard", aliases=["lb", "top"])
-async def leaderboard(ctx):
-    """Xem bảng xếp hạng XP top 10."""
-    xp_data = load_xp()
-    if not xp_data:
-        await ctx.send("Chưa có ai tích lũy XP cả!")
-        return
-
-    sorted_users = sorted(xp_data.items(), key=lambda x: x[1]["xp"], reverse=True)[:10]
-
-    embed = discord.Embed(title="🏆 Bảng Xếp Hạng XP", color=0xE67E22)
-    medals = ["🥇", "🥈", "🥉"] + ["4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
-
-    desc = ""
-    for i, (uid, data) in enumerate(sorted_users):
-        try:
-            user = ctx.guild.get_member(int(uid))
-            name = user.display_name if user else f"User {uid[:6]}"
-        except Exception:
-            name = f"User {uid[:6]}"
-        role = get_level_role(data["xp"])
-        desc += f"{medals[i]} **{name}** — {data['xp']} XP | {role}\n"
-
-    embed.description = desc
-    await ctx.send(embed=embed)
-
-
-@bot.command(name="resetxp")
-@commands.has_permissions(manage_guild=True)
-async def reset_xp(ctx, member: discord.Member):
-    """Reset XP của một thành viên. Dùng: !resetxp @người"""
-    xp_data = load_xp()
-    user_id = str(member.id)
-    if user_id in xp_data:
-        xp_data[user_id]["xp"] = 0
-        save_xp(xp_data)
-    await ctx.send(f"✅ Đã reset XP của {member.mention}.")
-
-
-@bot.command(name="setuproles")
-@commands.has_permissions(manage_guild=True, manage_roles=True)
-async def setup_roles(ctx):
-    """Tạo toàn bộ role cấp độ trong server. Dùng: !setuproles"""
-    msg = await ctx.send("⏳ Đang tạo các role cấp độ...")
-    created = []
-    existed = []
-
-    role_colors = [
-        0x95a5a6,  # 🌱 Người Mới - xám
-        0x2ecc71,  # 🌿 Người Quen - xanh lá nhạt
-        0x27ae60,  # 🌳 Thành Viên - xanh lá
-        0x1abc9c,  # 💬 Hay Nói Chuyện - ngọc
-        0x3498db,  # ⭐ Hoạt Động - xanh dương
-        0x2980b9,  # 🔵 Tích Cực - xanh đậm
-        0x9b59b6,  # 🟢 Cựu Thành Viên - tím
-        0xe67e22,  # 🔥 Nhiệt Huyết - cam
-        0xe74c3c,  # 💪 Chiến Binh - đỏ
-        0xf39c12,  # ⚡ Siêu Năng Động - vàng
-        0xd35400,  # 🎯 Chuyên Gia - cam đậm
-        0xf1c40f,  # 🌟 Ngôi Sao - vàng sáng
-        0x16a085,  # 🏅 Hào Quang - xanh ngọc đậm
-        0xc0392b,  # 🥇 Vô Địch - đỏ đậm
-        0x1f8ef1,  # 💎 Kim Cương - xanh kim cương
-        0x8e44ad,  # 🔮 Huyền Bí - tím đậm
-        0xf6c90e,  # 👑 Hoàng Gia - vàng hoàng gia
-        0xe91e63,  # 🌈 Huyền Thoại - hồng
-        0xff5722,  # 🦋 Siêu Huyền Thoại - đỏ cam
-        0xffd700,  # 🏆 Bất Tử - vàng rực
-    ]
-
-    for i, (threshold, role_name) in enumerate(LEVEL_ROLES):
-        existing = discord.utils.get(ctx.guild.roles, name=role_name)
-        if existing:
-            existed.append(role_name)
-        else:
-            color = discord.Color(role_colors[i]) if i < len(role_colors) else discord.Color.default()
-            try:
-                await ctx.guild.create_role(
-                    name=role_name,
-                    color=color,
-                    reason=f"Level role — cần {threshold} XP"
-                )
-                created.append(role_name)
-            except Exception as e:
-                await ctx.send(f"❌ Lỗi khi tạo role `{role_name}`: {e}")
-
-    lines = []
-    if created:
-        lines.append(f"✅ **Đã tạo {len(created)} role mới:**")
-        for r in created:
-            lines.append(f"  • {r}")
-    if existed:
-        lines.append(f"\n⚠️ **{len(existed)} role đã tồn tại** (bỏ qua):")
-        for r in existed:
-            lines.append(f"  • {r}")
-
-    await msg.edit(content="\n".join(lines) or "✅ Hoàn thành!")
-
-
-@bot.command(name="ping")
-async def ping(ctx):
-    """Kiểm tra độ trễ bot."""
-    latency = round(bot.latency * 1000)
-    await ctx.send(f"Pong! Độ trễ: {latency}ms")
-
-
-@bot.command(name="say")
-@commands.has_permissions(manage_guild=True)
-async def say(ctx, *, message: str):
-    """Bot gửi tin nhắn. Dùng: !say <nội dung>"""
-    await ctx.message.delete()
-    await ctx.send(message)
-
-
-@bot.command(name="weather")
-async def weather_cmd(ctx, *, city: str = None):
-    """Xem thời tiết. Dùng: !weather <thành phố>"""
-    if city is None:
-        weather_text = ""
-        for city_name, city_api in cities:
-            w = get_weather(city_api)
-            weather_text += f"🌤️ {city_name}: {w}\n"
-        embed = discord.Embed(title="Thời tiết hôm nay", description=weather_text, color=0x00BFFF)
-        await ctx.send(embed=embed)
-    else:
-        w = get_weather(city)
-        await ctx.send(f"🌤️ **{city}**: {w}")
-
-
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("Bạn không có quyền dùng lệnh này.")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"Thiếu tham số. Dùng `!help {ctx.command}` để xem hướng dẫn.")
-    elif isinstance(error, commands.CommandNotFound):
-        pass
-    else:
-        print(f"Error: {error}")
-
-
-if __name__ == "__main__":
-    if not TOKEN:
-        print("LỖI: Chưa set biến DISCORD_TOKEN!")
-        exit(1)
-    bot.run(TOKEN)
+# Kích hoạt web server trước khi chạy bot
+keep_alive() 
+bot.run(TOKEN)
