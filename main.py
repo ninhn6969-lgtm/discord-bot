@@ -1049,7 +1049,6 @@ if __name__ == "__main__":
     if not TOKEN:
         print("LỖI: Chưa set biến DISCORD_TOKEN!")
         exit(1)
-   Python
-if __name__ == "__main__":
-    keep_alive() # Gọi hàm giữ mạng
+    
+    keep_alive()  # Gọi hàm giữ mạng
     bot.run(TOKEN)
