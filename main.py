@@ -1,4 +1,4 @@
-import os
+    import os
 import json
 import random
 import requests
@@ -1043,12 +1043,10 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# --- KHỞI CHẠY (DÁN VÀO CUỐI FILE) ---
 if __name__ == "__main__":
     if not TOKEN:
         print("LỖI: Thiếu Token trong Environment Variables!")
         exit(1)
-    
-    keep_alive()  # Kích hoạt server Flask để Render không tắt bot
+    keep_alive()
     print("Đang kết nối tới Discord...")
-    bot.run(TOKEN) # Lệnh cuối cùng để bot đăng nhập
+    bot.run(TOKEN)
