@@ -1,4 +1,3 @@
-import os
 import json
 import random
 import requests
@@ -6,7 +5,7 @@ import discord
 from flask import Flask
 from threading import Thread
 from discord.ext import commands, tasks
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # --- PHẦN GIỮ MẠNG (KEEP ALIVE) ---
@@ -625,7 +624,7 @@ async def auto_message():
         weather_text += f"🌤️ {city_name}: {weather}\n"
         collected_temps.append(temp)
 
-    if now.hour == 7 and now.minute == 0:
+    if now.hour == 0 and now.minute == 0:
         if last_morning_day != day and not is_duplicate(f"morning_{day}_{month}_{year}"):
             noon_text = ""
             afternoon_text = ""
@@ -650,7 +649,7 @@ async def auto_message():
             )
             last_morning_day = day
 
-    if now.hour == 23 and now.minute == 0:
+    if now.hour == 16 and now.minute == 0:
         if last_night_day != day and not is_duplicate(f"night_{day}_{month}_{year}"):
             await channel.send(
                 f"🌙 Good Night mọi người!\n\n"
