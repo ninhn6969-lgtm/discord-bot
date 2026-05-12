@@ -3,31 +3,31 @@ import json
 import random
 import requests
 import discord
+from flask import Flask
+from threading import Thread
 from discord.ext import commands, tasks
 from datetime import datetime
 from dotenv import load_dotenv
 
-from flask import Flask
-from threading import Thread
-import os
-
+# --- PHẦN GIỮ MẠNG (KEEP ALIVE) ---
 app = Flask('')
+
 @app.route('/')
 def home():
     return "Bot is alive!"
 
 def run():
+    # Render cấp port nào thì dùng port đó để tránh lỗi
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
     t = Thread(target=run)
     t.start()
-    
+
+# --- CẤU HÌNH BIẾN ---
 load_dotenv()
-
 TOKEN = os.environ.get("DISCORD_TOKEN")
-
 WEATHER_API = "16dd80ccb3b2e13098744cad826085b2"
 CHANNEL_ID = 1437653177846599852
 
@@ -1045,10 +1045,19 @@ async def on_command_error(ctx, error):
         print(f"Error: {error}")
 
 
+def run():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
 if __name__ == "__main__":
     if not TOKEN:
-        print("LỖI: Chưa set biến DISCORD_TOKEN!")
+        print("LỖI: Chưa có Token trong Environment Variables!")
         exit(1)
     
-    keep_alive()  # Gọi hàm giữ mạng
+    keep_alive()  # Chạy server Flask song song
+    print("Đang kết nối tới Discord...")
     bot.run(TOKEN)
