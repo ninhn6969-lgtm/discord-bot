@@ -1,4 +1,4 @@
-    import os
+import os
 import json
 import random
 import requests
@@ -16,12 +16,13 @@ app = Flask('')
 def home():
     return "Bot is alive!"
 
-def run():
+def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
-    t = Thread(target=run)
+    # Sửa lỗi: Gọi đúng tên hàm run_flask_server
+    t = Thread(target=run_flask_server)
     t.start()
 
 # --- CẤU HÌNH BIẾN ---
@@ -694,9 +695,11 @@ async def on_message(message):
 async def time_vn(ctx):
     now_vn = datetime.utcnow() + timedelta(hours=7)
     await ctx.send(f"🕒 Giờ VN hiện tại bot nhận là: {now_vn.strftime('%H:%M:%S')}")
+
 @bot.command(name="ping")
 async def ping(ctx):
     await ctx.send(f"🏓 Pong! Bot đang chạy ổn định.")
+
 @bot.command(name="addcmd")
 @commands.has_permissions(manage_guild=True)
 async def add_command(ctx, name: str, *, response: str):
@@ -1034,19 +1037,14 @@ async def on_command_error(ctx, error):
     else:
         print(f"Error: {error}")
 
-
-def run():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
-
 def keep_alive():
     t = Thread(target=run)
     t.start()
 
+# --- KHỞI CHẠY (CUỐI FILE - CĂN LỀ CHUẨN) ---
 if __name__ == "__main__":
     if not TOKEN:
-        print("LỖI: Thiếu Token trong Environment Variables!")
+        print("LỖI: Thiếu Token!")
         exit(1)
     keep_alive()
-    print("Đang kết nối tới Discord...")
     bot.run(TOKEN)
