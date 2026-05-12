@@ -9,7 +9,6 @@ from discord.ext import commands, tasks
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
-# --- PHẦN GIỮ MẠNG (KEEP ALIVE) ---
 app = Flask('')
 
 @app.route('/')
@@ -21,10 +20,8 @@ def run_flask_server():
     app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
-    # Sửa lỗi: Gọi đúng tên hàm run_flask_server
     t = Thread(target=run_flask_server)
     t.start()
-
 # --- CẤU HÌNH BIẾN ---
 load_dotenv()
 TOKEN = os.environ.get("DISCORD_TOKEN")
@@ -32,11 +29,14 @@ WEATHER_API = "16dd80ccb3b2e13098744cad826085b2"
 CHANNEL_ID = 1437653177846599852
 
 cities = [
-    ("Hà Nội", "Hanoi"),
-    ("Hạ Long", "Ha Long"),
-    ("Thanh Hóa", "Thanh Hoa"),
-    ("TP.HCM", "Ho Chi Minh City")
+    ("Hà Nội", "Hanoi"), ("Hạ Long", "Ha Long"),
+    ("Thanh Hóa", "Thanh Hoa"), ("TP.HCM", "Ho Chi Minh City")
 ]
+
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
+
 morning_messages = [
     "🔥 Hôm nay hãy cố gắng hết mình nhé!",
     "☀️ Chúc mọi người một ngày tuyệt vời!",
@@ -599,22 +599,50 @@ def get_forecast_at(city, target_hour):
 
 
 # --- SETUP BOT ---
+# --- 3. SETUP BOT ---
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# --- HÀM KIỂM TRA GIỜ VIỆT NAM ---
+def get_weather(city_name):
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city_name}&appid={WEATHER_API}&units=metric&lang=vi"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        temp = data['main']['temp']
+        desc = data['weather'][0]['description']
+        return f"{temp}°C, {desc}"
+    return "Không lấy được thông tin thời tiết."
+
 @tasks.loop(minutes=1)
 async def check_time():
-    # Lấy giờ UTC và cộng 7 tiếng để ra đúng giờ VN
     now_vn = datetime.utcnow() + timedelta(hours=7)
     current_time = now_vn.strftime("%H:%M")
-    
     print(f"Log: Giờ VN hiện tại là {current_time}")
 
     channel = bot.get_channel(CHANNEL_ID)
-    if not channel:
-        return
+    if not channel: return
+
+    if current_time == "07:00":
+        msg = random.choice(morning_messages)
+        await channel.send(f"☀️ **Chào buổi sáng!**\n{msg}")
+    if current_time == "23:00":
+        await channel.send("🌙 Đã đến giờ đi ngủ rồi, chúc cả nhà ngủ ngon!")
+
+@bot.event
+async def on_ready():
+    print(f'Bot {bot.user.name} đã kết nối thành công!')
+    if not check_time.is_running():
+        check_time.start()
+# --- HÀM KIỂM TRA GIỜ VIỆT NAM ---
+@tasks.loop(minutes=1)
+async def check_time():
+    now_vn = datetime.utcnow() + timedelta(hours=7)
+    current_time = now_vn.strftime("%H:%M")
+    print(f"Log: Giờ VN hiện tại là {current_time}")
+
+    channel = bot.get_channel(CHANNEL_ID)
+    if not channel: return
 
     # Chào buổi sáng 7:00 AM VN
     if current_time == "07:00":
@@ -641,10 +669,9 @@ async def check_time():
             )
             last_night_day = day
 
-
 @bot.event
 async def on_ready():
-    print(f'Bot {bot.user.name} đã sẵn sàng!')
+    print(f'Bot {bot.user.name} đã kết nối thành công!')
     if not check_time.is_running():
         check_time.start()
 
@@ -1041,10 +1068,9 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# --- KHỞI CHẠY (CUỐI FILE - CĂN LỀ CHUẨN) ---
 if __name__ == "__main__":
     if not TOKEN:
         print("LỖI: Thiếu Token!")
         exit(1)
-    keep_alive()
-    bot.run(TOKEN)
+    keep_alive()  # Gọi hàm ở Phần 2
+    bot.run(TOKEN) # Lệnh này phải là lệnh CUỐI CÙNG
