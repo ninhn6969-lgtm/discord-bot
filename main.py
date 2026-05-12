@@ -1043,11 +1043,12 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
+# --- KHỞI CHẠY (DÁN VÀO CUỐI FILE) ---
 if __name__ == "__main__":
     if not TOKEN:
-        print("LỖI: Chưa có Token trong Environment Variables!")
+        print("LỖI: Thiếu Token trong Environment Variables!")
         exit(1)
     
-    keep_alive()  # Chạy server Flask song song
+    keep_alive()  # Kích hoạt server Flask để Render không tắt bot
     print("Đang kết nối tới Discord...")
-    bot.run(TOKEN)
+    bot.run(TOKEN) # Lệnh cuối cùng để bot đăng nhập
