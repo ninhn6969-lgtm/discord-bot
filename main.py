@@ -1,3 +1,4 @@
+import os
 import json
 import random
 import requests
@@ -16,7 +17,6 @@ def home():
     return "Bot is alive!"
 
 def run():
-    # Render cấp port nào thì dùng port đó để tránh lỗi
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
@@ -36,7 +36,6 @@ cities = [
     ("Thanh Hóa", "Thanh Hoa"),
     ("TP.HCM", "Ho Chi Minh City")
 ]
-
 morning_messages = [
     "🔥 Hôm nay hãy cố gắng hết mình nhé!",
     "☀️ Chúc mọi người một ngày tuyệt vời!",
@@ -598,44 +597,26 @@ def get_forecast_at(city, target_hour):
         return "Không lấy được dữ liệu"
 
 
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
-    print("Bot is ready!")
-    auto_message.start()
+# --- SETUP BOT ---
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
 
-
+# --- HÀM KIỂM TRA GIỜ VIỆT NAM ---
 @tasks.loop(minutes=1)
-async def auto_message():
-    global last_morning_day, last_night_day
+async def check_time():
+    # Lấy giờ UTC và cộng 7 tiếng để ra đúng giờ VN
+    now_vn = datetime.utcnow() + timedelta(hours=7)
+    current_time = now_vn.strftime("%H:%M")
+    
+    print(f"Log: Giờ VN hiện tại là {current_time}")
 
-    now = datetime.now()
-    day, month, year = now.day, now.month, now.year
-    try:
-        channel = await bot.fetch_channel(CHANNEL_ID)
-    except Exception:
-        print(f"Không tìm thấy channel ID {CHANNEL_ID}")
+    channel = bot.get_channel(CHANNEL_ID)
+    if not channel:
         return
 
-    weather_text = ""
-    collected_temps = []
-    for city_name, city_api in cities:
-        weather, temp = get_weather(city_api)
-        weather_text += f"🌤️ {city_name}: {weather}\n"
-        collected_temps.append(temp)
-
-    if now.hour == 0 and now.minute == 0:
-        if last_morning_day != day and not is_duplicate(f"morning_{day}_{month}_{year}"):
-            noon_text = ""
-            afternoon_text = ""
-            for city_name, city_api in cities:
-                noon_text += f"🌞 {city_name}: {get_forecast_at(city_api, 12)}\n"
-                afternoon_text += f"🌆 {city_name}: {get_forecast_at(city_api, 18)}\n"
-
-            holiday_text = get_upcoming_holiday()
-            fact_text = random.choice(daily_facts)
-            water_tip = water_tip_from_temps(collected_temps)
-
+    # Chào buổi sáng 7:00 AM VN
+    if current_time == "07:00":
             await channel.send(
                 f"☀️ Good Morning mọi người!\n\n"
                 f"📅 Hôm nay là ngày {day}/{month}/{year}\n\n"
@@ -649,8 +630,8 @@ async def auto_message():
             )
             last_morning_day = day
 
-    if now.hour == 16 and now.minute == 0:
-        if last_night_day != day and not is_duplicate(f"night_{day}_{month}_{year}"):
+    # Chúc ngủ ngon 23:00 PM VN
+    if current_time == "23:00":
             await channel.send(
                 f"🌙 Good Night mọi người!\n\n"
                 f"📅 Hôm nay là ngày {day}/{month}/{year}\n\n"
@@ -661,6 +642,11 @@ async def auto_message():
 
 
 @bot.event
+async def on_ready():
+    print(f'Bot {bot.user.name} đã sẵn sàng!')
+    if not check_time.is_running():
+        check_time.start()
+
 async def on_member_join(member):
     xp_data = load_xp()
     user_id = str(member.id)
@@ -704,8 +690,13 @@ async def on_message(message):
 
     await give_xp(message)
     await bot.process_commands(message)
-
-
+@bot.command(name="time")
+async def time_vn(ctx):
+    now_vn = datetime.utcnow() + timedelta(hours=7)
+    await ctx.send(f"🕒 Giờ VN hiện tại bot nhận là: {now_vn.strftime('%H:%M:%S')}")
+@bot.command(name="ping")
+async def ping(ctx):
+    await ctx.send(f"🏓 Pong! Bot đang chạy ổn định.")
 @bot.command(name="addcmd")
 @commands.has_permissions(manage_guild=True)
 async def add_command(ctx, name: str, *, response: str):
